@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
@@ -89,7 +88,7 @@ class ForceSendStore:
         try:
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(self._serialize(), f, ensure_ascii=False, indent=2)
-            shutil.replace(tmp_path, path)
+            os.replace(tmp_path, path)
         except Exception as e:
             logger.error(f"Failed to save config: {e}")
             raise
