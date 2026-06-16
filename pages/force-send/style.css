@@ -93,10 +93,15 @@ body {
 /* ===== Toast ===== */
 
 .toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  z-index: 1000;
+  width: min(calc(100vw - 40px), 720px);
   padding: 10px 18px;
   border-radius: 6px;
-  margin-bottom: 12px;
   font-size: 13px;
+  transform: translateX(-50%);
   transition: opacity 0.3s;
 }
 
