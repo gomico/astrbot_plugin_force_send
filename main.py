@@ -1,10 +1,11 @@
 import logging
+import logging.handlers
 import os
 from typing import Any
 
 from astrbot.api.event import filter
 from astrbot.api.star import Context, Star
-from astrbot.api.web import error_response, json_response
+from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 
 from .store import ForceSendStore, now_iso
 from .state import ForceSendRuntime
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 PLUGIN_NAME = "astrbot_plugin_force_send"
 SEND_TOOL_NAME = "send_message_to_user"
 MAX_ATTEMPTS = 3
+FILE_LOG_PATH = os.path.expanduser("~/force_send.log")
 
 
 class ForceSendPlugin(Star):
@@ -29,8 +31,8 @@ class ForceSendPlugin(Star):
         super().__init__(context)
 
         # 计算配置存储路径
-        data_dir = context.get_data_dir()
-        config_dir = os.path.join(data_dir, "plugin_data", PLUGIN_NAME)
+        plugin_data_dir = get_astrbot_plugin_data_path()
+        config_dir = os.path.join(plugin_data_dir, PLUGIN_NAME)
         config_path = os.path.join(config_dir, "config.json")
 
         self.store = ForceSendStore(PLUGIN_NAME)
@@ -49,6 +51,7 @@ class ForceSendPlugin(Star):
     async def initialize(self):
         """插件初始化：加载配置、同步 cron job、安装 patch。"""
         logger.info("ForceSendPlugin initializing...")
+        self._setup_debug_logging()
         await self.store.load()
         try:
             await self.store.sync_from_cron(self.context.cron_manager)
@@ -161,10 +164,10 @@ class ForceSendPlugin(Star):
                 "last_result": self.runtime.get_last_result(jid),
             })
 
-        return json_response({
+        return {
             "last_sync_at": self.store.data.last_sync_at,
             "jobs": jobs_list,
-        })
+        }
 
     async def api_set_force_send(self, request: Any):
         """POST /astrbot_plugin_force_send/jobs/<job_id>/force-send
@@ -173,28 +176,28 @@ class ForceSendPlugin(Star):
         """
         job_id = request.path_params.get("job_id")
         if not job_id:
-            return error_response("Missing job_id")
+            return {"error": "Missing job_id"}
 
         try:
             body = await request.json()
         except Exception:
-            return error_response("Invalid JSON body")
+            return {"error": "Invalid JSON body"}
 
         force_send = body.get("force_send")
         if not isinstance(force_send, bool):
-            return error_response("force_send must be a boolean")
+            return {"error": "force_send must be a boolean"}
 
         if job_id not in self.store.data.jobs:
-            return error_response(f"Job {job_id} not found in force-send config")
+            return {"error": f"Job {job_id} not found in force-send config"}
 
         self.store.set_force_send(job_id, force_send)
         await self.store.save()
 
-        return json_response({
+        return {
             "success": True,
             "job_id": job_id,
             "force_send": force_send,
-        })
+        }
 
     async def api_sync(self, request: Any):
         """POST /astrbot_plugin_force_send/sync
@@ -216,7 +219,7 @@ class ForceSendPlugin(Star):
                     if getattr(j, "job_type", None) == "active_agent"
                 ]
         except Exception as e:
-            return error_response(f"Failed to list cron jobs: {e}")
+            return {"error": f"Failed to list cron jobs: {e}"}
 
         seen = set()
         for job in jobs:
@@ -239,11 +242,11 @@ class ForceSendPlugin(Star):
         self.store.data.last_sync_at = now_iso()
         await self.store.save()
 
-        return json_response({
+        return {
             "success": True,
             "last_sync_at": self.store.data.last_sync_at,
             "stats": stats,
-        })
+        }
 
     # ========== 路由注册 ==========
 
@@ -267,3 +270,38 @@ class ForceSendPlugin(Star):
             ["POST"],
             "Sync cron jobs",
         )
+
+    @staticmethod
+    def _setup_debug_logging():
+        """添加文件日志输出到 ~/force_send.log（开发调试用）。"""
+        plugin_logger = logging.getLogger("astrbot_plugin_force_send")
+        log_path = FILE_LOG_PATH
+
+        # 避免重复添加
+        for handler in plugin_logger.handlers[:]:
+            if isinstance(handler, logging.FileHandler):
+                try:
+                    if handler.baseFilename == os.path.abspath(log_path):
+                        return
+                except (AttributeError, OSError):
+                    pass
+
+        try:
+            handler = logging.handlers.RotatingFileHandler(
+                log_path,
+                maxBytes=10 * 1024 * 1024,
+                backupCount=3,
+                encoding="utf-8",
+            )
+            handler.setLevel(logging.DEBUG)
+            handler.setFormatter(
+                logging.Formatter(
+                    "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                )
+            )
+            plugin_logger.addHandler(handler)
+            plugin_logger.setLevel(logging.DEBUG)
+            logger.info(f"Debug logging enabled: {log_path}")
+        except Exception as e:
+            logger.warning(f"Failed to setup file logging: {e}")
