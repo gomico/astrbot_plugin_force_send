@@ -4,8 +4,8 @@ import os
 
 from astrbot.api.event import filter
 from astrbot.api.star import Context, Star
+from astrbot.api.web import error_response, json_response, request
 from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
-from quart import request
 
 from .store import ForceSendStore, now_iso
 from .state import ForceSendRuntime
@@ -164,46 +164,46 @@ class ForceSendPlugin(Star):
                 "last_result": self.runtime.get_last_result(jid),
             })
 
-        return {
+        return json_response({
             "last_sync_at": self.store.data.last_sync_at,
             "jobs": jobs_list,
-        }
+        })
 
-    async def api_set_force_send(self):
+    async def api_set_force_send(self, job_id: str):
         """POST /astrbot_plugin_force_send/jobs/<job_id>/force-send
 
         请求体: {"force_send": true}
         """
-        job_id = request.path_params.get("job_id")
         if not job_id:
-            return {"error": "Missing job_id"}
+            return error_response("Missing job_id", status_code=400)
 
-        try:
-            body = await request.json()
-        except Exception:
-            return {"error": "Invalid JSON body"}
+        body = await request.json(default={})
 
         force_send = body.get("force_send")
         if not isinstance(force_send, bool):
-            return {"error": "force_send must be a boolean"}
+            return error_response("force_send must be a boolean", status_code=400)
 
         if job_id not in self.store.data.jobs:
-            return {"error": f"Job {job_id} not found in force-send config"}
+            return error_response(
+                f"Job {job_id} not found in force-send config",
+                status_code=404,
+            )
 
         self.store.set_force_send(job_id, force_send)
         await self.store.save()
 
-        return {
+        return json_response({
             "success": True,
             "job_id": job_id,
             "force_send": force_send,
-        }
+        })
 
     async def api_sync(self):
         """POST /astrbot_plugin_force_send/sync
 
         手动触发同步，返回统计信息。
         """
+        logger.info("Manual sync requested from plugin page")
         stats = {"added": 0, "updated": 0, "removed": 0, "skipped": 0}
         before_ids = set(self.store.data.jobs.keys())
 
@@ -219,7 +219,8 @@ class ForceSendPlugin(Star):
                     if getattr(j, "job_type", None) == "active_agent"
                 ]
         except Exception as e:
-            return {"error": f"Failed to list cron jobs: {e}"}
+            logger.warning(f"Manual sync failed to list cron jobs: {e}")
+            return error_response(f"Failed to list cron jobs: {e}", status_code=500)
 
         seen = set()
         for job in jobs:
@@ -241,12 +242,17 @@ class ForceSendPlugin(Star):
 
         self.store.data.last_sync_at = now_iso()
         await self.store.save()
+        logger.info(
+            "Manual sync complete: "
+            f"added={stats['added']} updated={stats['updated']} "
+            f"removed={stats['removed']} skipped={stats['skipped']}"
+        )
 
-        return {
+        return json_response({
             "success": True,
             "last_sync_at": self.store.data.last_sync_at,
             "stats": stats,
-        }
+        })
 
     # ========== 路由注册 ==========
 
