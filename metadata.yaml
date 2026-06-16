@@ -1,0 +1,7 @@
+name: astrbot_plugin_force_send
+display_name: 强制发送
+desc: 为 active_agent 定时任务增加强制发送能力。任务开启后若未调用 send_message_to_user 则自动重试。
+help: 进入插件 Pages → force-send 管理页面，同步任务列表后开启对应任务的 Force Send 开关即可。
+version: v0.1
+author: gomico
+repo: https://github.com/gomico/astrbot_plugin_force_send
