@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Force Send 管理</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="status-bar">
+      <div class="status-left">
+        <span class="sync-time">上次同步：<span id="lastSyncAt">-</span></span>
+        <span class="job-count">任务数：<span id="jobCount">0</span></span>
+      </div>
+      <button id="syncBtn" class="btn btn-primary">立即同步</button>
+    </header>
+
+    <div id="errorToast" class="toast error hidden"></div>
+    <div id="successToast" class="toast success hidden"></div>
+
+    <div class="table-container">
+      <table id="jobTable">
+        <thead>
+          <tr>
+            <th>任务名</th>
+            <th>Cron</th>
+            <th>启用</th>
+            <th>下次运行</th>
+            <th>投递会话</th>
+            <th>Force Send</th>
+            <th>最近结果</th>
+          </tr>
+        </thead>
+        <tbody id="jobTableBody">
+          <tr id="loadingRow">
+            <td colspan="7" class="loading">加载中...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
