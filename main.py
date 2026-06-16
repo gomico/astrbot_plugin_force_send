@@ -1,11 +1,11 @@
 import logging
 import logging.handlers
 import os
-from typing import Any
 
 from astrbot.api.event import filter
 from astrbot.api.star import Context, Star
 from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
+from quart import request
 
 from .store import ForceSendStore, now_iso
 from .state import ForceSendRuntime
@@ -141,7 +141,7 @@ class ForceSendPlugin(Star):
 
     # ========== Web API ==========
 
-    async def api_list_jobs(self, request: Any):
+    async def api_list_jobs(self):
         """GET /astrbot_plugin_force_send/jobs
 
         返回所有已同步的 active_agent 任务及其 force send 状态。
@@ -169,7 +169,7 @@ class ForceSendPlugin(Star):
             "jobs": jobs_list,
         }
 
-    async def api_set_force_send(self, request: Any):
+    async def api_set_force_send(self):
         """POST /astrbot_plugin_force_send/jobs/<job_id>/force-send
 
         请求体: {"force_send": true}
@@ -199,7 +199,7 @@ class ForceSendPlugin(Star):
             "force_send": force_send,
         }
 
-    async def api_sync(self, request: Any):
+    async def api_sync(self):
         """POST /astrbot_plugin_force_send/sync
 
         手动触发同步，返回统计信息。
